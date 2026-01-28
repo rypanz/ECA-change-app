@@ -214,10 +214,6 @@ const FullVsFastTrack: React.FC<Props> = ({ changeData, updateChangeData, onNext
             <p className="lmnt-theme-on-surface font-medium">{changeData.ecrNumber}</p>
           </div>
           <div>
-            <p className="lmnt-theme-on-surface-variant">Document Number</p>
-            <p className="lmnt-theme-on-surface font-medium">{changeData.documentNumber}</p>
-          </div>
-          <div>
             <p className="lmnt-theme-on-surface-variant">Change Type</p>
             <p className="lmnt-theme-on-surface font-medium capitalize">{changeData.changeType}</p>
           </div>
@@ -242,7 +238,7 @@ const FullVsFastTrack: React.FC<Props> = ({ changeData, updateChangeData, onNext
           disabled={!isValid}
           className="lmnt-theme-primary-bg lmnt-theme-on-primary px-8 py-3 rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
         >
-          Continue to Impact Assessment
+          Continue to Assessments
         </button>
       </div>
     </div>
