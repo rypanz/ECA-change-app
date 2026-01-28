@@ -33,11 +33,6 @@ export const exportToExcel = (changeData: any) => {
     [''],
     ['ECR Number:', changeData.ecrNumber],
     ['Change Type:', changeData.changeType],
-    ['Object Type:', changeData.objectType],
-    ['Document Number:', changeData.documentNumber],
-    ['Document Type:', changeData.documentType],
-    ['Version:', changeData.documentVersion],
-    ['State:', changeData.documentState],
     [''],
     ['Scope and Reason for Change:'],
     [changeData.scopeOfChange || ''],
@@ -53,16 +48,16 @@ export const exportToExcel = (changeData: any) => {
     ['Full vs Fast Track'],
     [''],
     ['Routing Type:', changeData.trackType === 'full' ? 'Full Track' : 'Fast Track'],
+    ['Complexity Score:', changeData.totalComplexityScore || 0],
     [''],
+    ['Complexity Breakdown:'],
+    ['Impact Score:', changeData.complexityScores?.impact || 0],
+    ['Risk Score:', changeData.complexityScores?.risk || 0],
+    ['Cost Score:', changeData.complexityScores?.cost || 0],
+    [''],
+    ['Rationale:'],
+    [changeData.complexityRationale || '']
   ]
-  
-  if (changeData.trackType === 'full') {
-    trackData.push(['CRB Members:'])
-    trackData.push([changeData.crbMembers || ''])
-  } else {
-    trackData.push(['CRB review is not required for Fast Track changes.'])
-  }
-  
   const trackWS = XLSX.utils.aoa_to_sheet(trackData)
   XLSX.utils.book_append_sheet(workbook, trackWS, 'Full vs Fast Track')
 
@@ -71,19 +66,38 @@ export const exportToExcel = (changeData: any) => {
     const crbData = [
       ['CRB-CIB'],
       [''],
-      ['Change Review Board Members:'],
+      ['Change Review Board (CRB) Members:'],
       [changeData.crbMembers || ''],
       [''],
-      ['Notes:'],
-      ['This tab should be completed with detailed CRB member information and review requirements.']
+      ['Change Implementation Board (CIB) Members:'],
+      [changeData.cibMembers || ''],
+      [''],
+      ['Additional Approval Notes:'],
+      [changeData.approvalNotes || '']
     ]
     const crbWS = XLSX.utils.aoa_to_sheet(crbData)
     XLSX.utils.book_append_sheet(workbook, crbWS, 'CRB-CIB')
   }
 
+  // QSR tab (if needed)
+  if (changeData.qsrDetermination?.needsQSR) {
+    const qsrData = [
+      ['QSR Assessment'],
+      [''],
+      ['QSR Determination:'],
+      ['Includes QSR Datasets:', changeData.qsrDetermination?.includesQSRDatasets ? 'Yes' : 'No'],
+      ['Includes Quality Datasets (Supplier Quality):', changeData.qsrDetermination?.includesQualityDatasets ? 'Yes' : 'No'],
+      ['Includes Training Documents:', changeData.qsrDetermination?.includesTrainingDocs ? 'Yes' : 'No'],
+      [''],
+      ['[Additional QSR assessment content to be completed]']
+    ]
+    const qsrWS = XLSX.utils.aoa_to_sheet(qsrData)
+    XLSX.utils.book_append_sheet(workbook, qsrWS, 'QSR Assessment')
+  }
+
   // Product ECA tabs (only if product change)
   if (changeData.changeType === 'product') {
-    // Tab 5: Product ECA
+    // Tab: Product ECA
     const productECAData = [
       ['Product ECA'],
       [''],
@@ -101,7 +115,7 @@ export const exportToExcel = (changeData: any) => {
     const productECAWS = XLSX.utils.aoa_to_sheet(productECAData)
     XLSX.utils.book_append_sheet(workbook, productECAWS, 'Product ECA')
 
-    // Tab 6: Affected Items
+    // Tab: Affected Items
     const affectedItemsHeaders = [
       ['Part Number', 'Description', 'Action Required', 'Cost', 'Resource', 'Time']
     ]
@@ -122,7 +136,7 @@ export const exportToExcel = (changeData: any) => {
     ])
     XLSX.utils.book_append_sheet(workbook, affectedItemsWS, 'Affected Items')
 
-    // Tab 7: Impact Analysis
+    // Tab: Impact Analysis
     const impactAnalysisData = [
       ['Impact Analysis'],
       [''],
@@ -136,10 +150,11 @@ export const exportToExcel = (changeData: any) => {
     XLSX.utils.book_append_sheet(workbook, impactAnalysisWS, 'Impact Analysis')
   }
 
-  // Manufacturing/QSR ECA tabs (only if manufacturing change)
+  // Manufacturing ECA tabs (only if manufacturing change)
   if (changeData.changeType === 'manufacturing') {
+    const assessmentType = changeData.manufacturingDetermination?.needsEM ? 'EM' : 'SD'
     const mfgECAData = [
-      ['Manufacturing/QSR ECA'],
+      [`${assessmentType} Assessment`],
       [''],
       ['Impacted Objects:', changeData.manufacturingData?.impactedObjects || ''],
       ['ECR Number:', changeData.ecrNumber || ''],
@@ -168,24 +183,22 @@ export const exportToExcel = (changeData: any) => {
     })
 
     const mfgECAWS = XLSX.utils.aoa_to_sheet(mfgECAData)
-    XLSX.utils.book_append_sheet(workbook, mfgECAWS, 'Manufacturing-QSR ECA')
+    XLSX.utils.book_append_sheet(workbook, mfgECAWS, `${assessmentType} Assessment`)
   }
 
   // Tab: Minimum Deliverables (always included)
   const deliverablesData = [
     ['Minimum Deliverables (CIP)'],
     [''],
-    ['This tab is optional but recommended to supplement the ECA.'],
-    ['Use it for project organization or as an overflow document list.'],
+    ['Change Implementation Plan'],
     [''],
-    ['Deliverable', 'Responsible', 'Due Date', 'Status'],
-    ['', '', '', ''],
+    [changeData.minimumDeliverables || 'No deliverables documented']
   ]
   const deliverablesWS = XLSX.utils.aoa_to_sheet(deliverablesData)
   XLSX.utils.book_append_sheet(workbook, deliverablesWS, 'Minimum Deliverables')
 
   // Generate filename
-  const filename = `ECA_${changeData.ecrNumber || changeData.documentNumber || 'Draft'}_${new Date().toISOString().split('T')[0]}.xlsx`
+  const filename = `ECA_${changeData.ecrNumber || 'Draft'}_${new Date().toISOString().split('T')[0]}.xlsx`
 
   // Write file
   XLSX.writeFile(workbook, filename)
