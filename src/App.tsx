@@ -1,14 +1,17 @@
 import React, { useState } from 'react'
 import './styles/bayer-theme.css'
-import { FileSearch, FileText, Users, Download, GitBranch } from 'lucide-react'
+import { FileSearch, FileText, Users, Download, GitBranch, Shield, ListChecks, Package } from 'lucide-react'
 import DocumentSearch from './components/DocumentSearch'
 import ScopeOfChange from './components/ScopeOfChange'
 import FullVsFastTrack from './components/FullVsFastTrack'
+import CRBMembers from './components/CRBMembers'
 import ProductChange from './components/ProductChange'
+import ProductECA from './components/ProductECA'
 import ManufacturingChange from './components/ManufacturingChange'
+import MinimumDeliverables from './components/MinimumDeliverables'
 import ReviewExport from './components/ReviewExport'
 
-type Step = 'search' | 'scope' | 'track' | 'assessment' | 'review'
+type Step = 'search' | 'scope' | 'track' | 'qsr' | 'product-affected' | 'product-eca' | 'em' | 'sd' | 'crb' | 'deliverables' | 'review'
 
 interface ChangeData {
   ecrNumber: string
@@ -18,17 +21,43 @@ interface ChangeData {
   documentState: string
   changeType?: 'product' | 'manufacturing'
   objectType?: string
+  qsrDetermination?: {
+    includesQSRDatasets: boolean
+    includesQualityDatasets: boolean
+    includesTrainingDocs: boolean
+    noneOfAboveQSR: boolean
+    needsQSR: boolean
+  }
   productTypeOptions?: {
     includesPartObjects: boolean
     includesProductDesignDatasets: boolean
     includesProtocolReport: boolean
   }
+  manufacturingDetermination?: {
+    includesProductDesignInMfg: boolean
+    includesMfgDatasetsEM: boolean
+    includesServiceDatasets: boolean
+    includesMfgDatasetsSD: boolean
+    needsEM: boolean
+    needsSD: boolean
+  }
   requiredECATypes?: string[]
   scopeOfChange: string
   changeSummary: string
   trackType?: string
+  complexityScores?: {
+    impact: number
+    risk: number
+    cost: number
+  }
+  totalComplexityScore?: number
+  complexityRationale?: string
   crbMembers?: string
+  cibMembers?: string
+  approvalNotes?: string
+  minimumDeliverables?: string
   productData?: any
+  productECAData?: any
   manufacturingData?: any
 }
 
@@ -45,13 +74,43 @@ function App() {
   })
 
   const getSteps = () => {
-    return [
+    const steps = [
       { id: 'search', name: 'ECR Information', icon: FileSearch },
       { id: 'scope', name: 'Scope of Change', icon: FileText },
-      { id: 'track', name: 'Full vs Fast Track', icon: GitBranch },
-      { id: 'assessment', name: 'Impact Assessment', icon: Users },
-      { id: 'review', name: 'Review & Export', icon: Download }
+      { id: 'track', name: 'Full vs Fast Track', icon: GitBranch }
     ]
+
+    // Add QSR if needed (right after track)
+    if (changeData.qsrDetermination?.needsQSR) {
+      steps.push({ id: 'qsr', name: 'QSR Assessment', icon: Users })
+    }
+
+    // Add Product pages if product change
+    if (changeData.changeType === 'product') {
+      steps.push({ id: 'product-affected', name: 'Product Affected Items', icon: Users })
+      steps.push({ id: 'product-eca', name: 'Product ECA', icon: Package })
+    }
+
+    // Add Manufacturing pages if manufacturing change
+    if (changeData.changeType === 'manufacturing') {
+      if (changeData.manufacturingDetermination?.needsEM) {
+        steps.push({ id: 'em', name: 'EM Assessment', icon: Users })
+      }
+      if (changeData.manufacturingDetermination?.needsSD) {
+        steps.push({ id: 'sd', name: 'SD Assessment', icon: Users })
+      }
+    }
+
+    // Add CRB if Full Track (BEFORE Minimum Deliverables)
+    if (changeData.trackType === 'full') {
+      steps.push({ id: 'crb', name: 'CRB/CIB Members', icon: Shield })
+    }
+
+    // Add Minimum Deliverables before Review
+    steps.push({ id: 'deliverables', name: 'Minimum Deliverables', icon: ListChecks })
+    steps.push({ id: 'review', name: 'Review & Export', icon: Download })
+
+    return steps
   }
 
   const steps = getSteps()
@@ -76,9 +135,6 @@ function App() {
     }
   }
 
-  const isProductChange = changeData.changeType === 'product'
-  const isManufacturingChange = changeData.changeType === 'manufacturing'
-
   return (
     <div className="min-h-screen lmnt-theme-surface-bg">
       {/* Header */}
@@ -92,14 +148,14 @@ function App() {
       {/* Progress Steps */}
       <div className="lmnt-theme-background-bg border-b lmnt-theme-divider-primary">
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between overflow-x-auto">
             {steps.map((step, index) => {
               const Icon = step.icon
               const isActive = currentStep === step.id
               const isCompleted = steps.findIndex(s => s.id === currentStep) > index
               
               return (
-                <div key={step.id} className="flex items-center flex-1">
+                <div key={step.id} className="flex items-center flex-1 min-w-[120px]">
                   <div className="flex flex-col items-center flex-1">
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
                       isActive 
@@ -156,8 +212,39 @@ function App() {
               onBack={goToPreviousStep}
             />
           )}
+
+          {currentStep === 'qsr' && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold lmnt-theme-primary mb-2">QSR Assessment</h2>
+                <p className="lmnt-theme-on-surface">Quality System Requirements assessment for QSR datasets and training documents</p>
+              </div>
+              <div className="lmnt-theme-surface-variant-bg p-6 rounded-lg">
+                <p className="text-sm lmnt-theme-on-surface mb-4">
+                  This page will contain QSR-specific assessment questions and compliance requirements.
+                </p>
+                <p className="text-sm lmnt-theme-on-surface-variant">
+                  [QSR assessment content to be implemented based on requirements]
+                </p>
+              </div>
+              <div className="flex justify-between pt-6 border-t lmnt-theme-divider-primary">
+                <button
+                  onClick={goToPreviousStep}
+                  className="lmnt-theme-surface-variant-bg lmnt-theme-on-surface px-8 py-3 rounded-lg font-medium hover:opacity-90"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={goToNextStep}
+                  className="lmnt-theme-primary-bg lmnt-theme-on-primary px-8 py-3 rounded-lg font-medium hover:opacity-90"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          )}
           
-          {currentStep === 'assessment' && isProductChange && (
+          {currentStep === 'product-affected' && (
             <ProductChange 
               changeData={changeData}
               updateChangeData={updateChangeData}
@@ -165,9 +252,67 @@ function App() {
               onBack={goToPreviousStep}
             />
           )}
+
+          {currentStep === 'product-eca' && (
+            <ProductECA 
+              changeData={changeData}
+              updateChangeData={updateChangeData}
+              onNext={goToNextStep}
+              onBack={goToPreviousStep}
+            />
+          )}
+
+          {currentStep === 'em' && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold lmnt-theme-primary mb-2">EM (Engineering Manufacturing) Assessment</h2>
+                <p className="lmnt-theme-on-surface">Assessment for O'Hara, Rydalmere, EMO sites and service datasets</p>
+              </div>
+              <div className="lmnt-theme-surface-variant-bg p-6 rounded-lg">
+                <p className="text-sm lmnt-theme-on-surface mb-4">
+                  This page will contain EM-specific assessment questions for manufacturing datasets at O'Hara, Rydalmere, EMO sites and service datasets.
+                </p>
+                <p className="text-sm lmnt-theme-on-surface-variant">
+                  [EM assessment content to be implemented based on requirements]
+                </p>
+              </div>
+              <div className="flex justify-between pt-6 border-t lmnt-theme-divider-primary">
+                <button
+                  onClick={goToPreviousStep}
+                  className="lmnt-theme-surface-variant-bg lmnt-theme-on-surface px-8 py-3 rounded-lg font-medium hover:opacity-90"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={goToNextStep}
+                  className="lmnt-theme-primary-bg lmnt-theme-on-primary px-8 py-3 rounded-lg font-medium hover:opacity-90"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          )}
           
-          {currentStep === 'assessment' && isManufacturingChange && (
+          {currentStep === 'sd' && (
             <ManufacturingChange 
+              changeData={changeData}
+              updateChangeData={updateChangeData}
+              onNext={goToNextStep}
+              onBack={goToPreviousStep}
+            />
+          )}
+          
+          {currentStep === 'crb' && (
+            <CRBMembers 
+              changeData={changeData}
+              updateChangeData={updateChangeData}
+              onNext={goToNextStep}
+              onBack={goToPreviousStep}
+            />
+          )}
+          
+          {currentStep === 'deliverables' && (
+            <MinimumDeliverables 
               changeData={changeData}
               updateChangeData={updateChangeData}
               onNext={goToNextStep}
