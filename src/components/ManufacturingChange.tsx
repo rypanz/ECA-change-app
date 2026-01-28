@@ -124,23 +124,20 @@ const ManufacturingChange: React.FC<Props> = ({ changeData, updateChangeData, on
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold lmnt-theme-primary mb-2">Manufacturing/QSR Change Assessment</h2>
-        <p className="lmnt-theme-on-surface">Complete the impact assessment for manufacturing and QSR changes (Step 5)</p>
+        <h2 className="text-2xl font-bold lmnt-theme-primary mb-2">SD (Site-Specific) Assessment</h2>
+        <p className="lmnt-theme-on-surface">Assessment for Heredia, Indianola, and Saxonburg sites (Step {changeData.qsrDetermination?.needsQSR ? '6' : '5'})</p>
       </div>
 
       <div className="lmnt-theme-surface-variant-bg p-6 rounded-lg border-l-4 lmnt-theme-secondary-border">
         <div className="flex items-start gap-3">
           <AlertCircle size={24} className="lmnt-theme-secondary mt-1" />
           <div>
-            <h4 className="font-bold lmnt-theme-on-surface mb-2">Manufacturing/QSR Change Scope</h4>
-            <p className="text-sm lmnt-theme-on-surface mb-2">This assessment covers:</p>
+            <h4 className="font-bold lmnt-theme-on-surface mb-2">SD Assessment Scope</h4>
+            <p className="text-sm lmnt-theme-on-surface mb-2">This assessment covers manufacturing datasets for:</p>
             <ul className="text-sm lmnt-theme-on-surface list-disc list-inside space-y-1">
-              <li>QSR Dataset document types</li>
-              <li>Quality Dataset documents (Supplier Quality Requirements - Released State)</li>
-              <li>Training documents</li>
-              <li>Product Design Datasets used in manufacturing</li>
-              <li>Manufacturing Dataset documents (O'Hara, Rydalmere, EMO, Heredia, Indianola, Saxonburg sites)</li>
-              <li>Service Datasets</li>
+              <li>Heredia site</li>
+              <li>Indianola site</li>
+              <li>Saxonburg site</li>
             </ul>
           </div>
         </div>
@@ -161,7 +158,7 @@ const ManufacturingChange: React.FC<Props> = ({ changeData, updateChangeData, on
             value={impactedObjects}
             onChange={(e) => setImpactedObjects(e.target.value)}
             rows={3}
-            placeholder="List the objects impacted by this change (QSR Datasets, Manufacturing Datasets, Training Documents, etc.)"
+            placeholder="List the objects impacted by this change (Manufacturing Datasets at Heredia, Indianola, or Saxonburg)"
             className="w-full px-4 py-3 border lmnt-theme-primary-border rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 lmnt-theme-primary resize-none"
           />
         </div>
