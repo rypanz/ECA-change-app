@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { FileText, Package, Wrench } from 'lucide-react'
+import { FileText, Package, Wrench, AlertCircle } from 'lucide-react'
 
 interface Props {
   changeData: any
@@ -10,17 +10,33 @@ interface Props {
 const DocumentSearch: React.FC<Props> = ({ changeData, updateChangeData, onNext }) => {
   const [ecrNumber, setEcrNumber] = useState(changeData.ecrNumber || '')
   const [changeType, setChangeType] = useState<'product' | 'manufacturing' | null>(changeData.changeType || null)
-  const [objectType, setObjectType] = useState(changeData.objectType || '')
-  const [documentNumber, setDocumentNumber] = useState(changeData.documentNumber || '')
+
+  // QSR determination questions
+  const [includesQSRDatasets, setIncludesQSRDatasets] = useState(changeData.qsrDetermination?.includesQSRDatasets || false)
+  const [includesQualityDatasets, setIncludesQualityDatasets] = useState(changeData.qsrDetermination?.includesQualityDatasets || false)
+  const [includesTrainingDocs, setIncludesTrainingDocs] = useState(changeData.qsrDetermination?.includesTrainingDocs || false)
+  const [noneOfAboveQSR, setNoneOfAboveQSR] = useState(changeData.qsrDetermination?.noneOfAboveQSR || false)
 
   // Product change type options
   const [includesPartObjects, setIncludesPartObjects] = useState(changeData.productTypeOptions?.includesPartObjects || false)
   const [includesProductDesignDatasets, setIncludesProductDesignDatasets] = useState(changeData.productTypeOptions?.includesProductDesignDatasets || false)
   const [includesProtocolReport, setIncludesProtocolReport] = useState(changeData.productTypeOptions?.includesProtocolReport || false)
 
+  // Manufacturing sub-questions (EM vs SD determination)
+  const [includesProductDesignInMfg, setIncludesProductDesignInMfg] = useState(changeData.manufacturingDetermination?.includesProductDesignInMfg || false)
+  const [includesMfgDatasetsEM, setIncludesMfgDatasetsEM] = useState(changeData.manufacturingDetermination?.includesMfgDatasetsEM || false)
+  const [includesServiceDatasets, setIncludesServiceDatasets] = useState(changeData.manufacturingDetermination?.includesServiceDatasets || false)
+  const [includesMfgDatasetsSD, setIncludesMfgDatasetsSD] = useState(changeData.manufacturingDetermination?.includesMfgDatasetsSD || false)
+
   const handleTypeSelect = (type: 'product' | 'manufacturing') => {
     setChangeType(type)
-    if (type === 'manufacturing') {
+    if (type === 'product') {
+      // Clear manufacturing options if switching to product
+      setIncludesProductDesignInMfg(false)
+      setIncludesMfgDatasetsEM(false)
+      setIncludesServiceDatasets(false)
+      setIncludesMfgDatasetsSD(false)
+    } else {
       // Clear product options if switching to manufacturing
       setIncludesPartObjects(false)
       setIncludesProductDesignDatasets(false)
@@ -28,36 +44,114 @@ const DocumentSearch: React.FC<Props> = ({ changeData, updateChangeData, onNext 
     }
   }
 
-  const handleContinue = () => {
-    if (changeType === 'product') {
-      updateChangeData({ 
-        ecrNumber,
-        documentNumber,
-        changeType: 'product',
-        objectType,
-        productTypeOptions: {
-          includesPartObjects,
-          includesProductDesignDatasets,
-          includesProtocolReport
-        },
-        requiredECATypes: ['Product']
-      })
+  const handleQSRCheckbox = (field: 'qsr' | 'quality' | 'training' | 'none', checked: boolean) => {
+    if (field === 'none') {
+      setNoneOfAboveQSR(checked)
+      if (checked) {
+        setIncludesQSRDatasets(false)
+        setIncludesQualityDatasets(false)
+        setIncludesTrainingDocs(false)
+      }
     } else {
-      updateChangeData({ 
-        ecrNumber,
-        documentNumber,
-        changeType: 'manufacturing',
-        objectType,
-        productTypeOptions: null,
-        requiredECATypes: ['Manufacturing', 'QSR']
-      })
+      if (checked) {
+        setNoneOfAboveQSR(false)
+      }
+      
+      switch (field) {
+        case 'qsr':
+          setIncludesQSRDatasets(checked)
+          break
+        case 'quality':
+          setIncludesQualityDatasets(checked)
+          break
+        case 'training':
+          setIncludesTrainingDocs(checked)
+          break
+      }
     }
+  }
+
+  const handleEMCheckbox = (field: 'design' | 'mfg' | 'service', checked: boolean) => {
+    // If checking any EM box, uncheck all SD boxes
+    if (checked) {
+      setIncludesMfgDatasetsSD(false)
+    }
+
+    switch (field) {
+      case 'design':
+        setIncludesProductDesignInMfg(checked)
+        break
+      case 'mfg':
+        setIncludesMfgDatasetsEM(checked)
+        break
+      case 'service':
+        setIncludesServiceDatasets(checked)
+        break
+    }
+  }
+
+  const handleSDCheckbox = (checked: boolean) => {
+    // If checking SD box, uncheck all EM boxes
+    if (checked) {
+      setIncludesProductDesignInMfg(false)
+      setIncludesMfgDatasetsEM(false)
+      setIncludesServiceDatasets(false)
+    }
+    setIncludesMfgDatasetsSD(checked)
+  }
+
+  const handleContinue = () => {
+    const needsQSR = includesQSRDatasets || includesQualityDatasets || includesTrainingDocs
+    const needsEM = includesProductDesignInMfg || includesMfgDatasetsEM || includesServiceDatasets
+    const needsSD = includesMfgDatasetsSD
+
+    // Determine required ECA types
+    const requiredECATypes: string[] = []
+    if (needsQSR) requiredECATypes.push('QSR')
+    if (changeType === 'product') requiredECATypes.push('Product')
+    if (changeType === 'manufacturing') {
+      if (needsEM) requiredECATypes.push('EM')
+      if (needsSD) requiredECATypes.push('SD')
+    }
+
+    updateChangeData({ 
+      ecrNumber,
+      changeType,
+      qsrDetermination: {
+        includesQSRDatasets,
+        includesQualityDatasets,
+        includesTrainingDocs,
+        noneOfAboveQSR,
+        needsQSR
+      },
+      productTypeOptions: changeType === 'product' ? {
+        includesPartObjects,
+        includesProductDesignDatasets,
+        includesProtocolReport
+      } : null,
+      manufacturingDetermination: changeType === 'manufacturing' ? {
+        includesProductDesignInMfg,
+        includesMfgDatasetsEM,
+        includesServiceDatasets,
+        includesMfgDatasetsSD,
+        needsEM,
+        needsSD
+      } : null,
+      requiredECATypes
+    })
     onNext()
   }
 
   const isProductValid = changeType === 'product' && (includesPartObjects || includesProductDesignDatasets || includesProtocolReport)
-  const isValid = ecrNumber && documentNumber && changeType && objectType && 
-    (changeType === 'manufacturing' || isProductValid)
+  const isManufacturingValid = changeType === 'manufacturing' && (
+    includesProductDesignInMfg || includesMfgDatasetsEM || includesServiceDatasets || includesMfgDatasetsSD
+  )
+  const isQSRValid = includesQSRDatasets || includesQualityDatasets || includesTrainingDocs || noneOfAboveQSR
+  const isValid = ecrNumber && changeType && isQSRValid &&
+    (isProductValid || isManufacturingValid)
+
+  const needsEM = includesProductDesignInMfg || includesMfgDatasetsEM || includesServiceDatasets
+  const needsSD = includesMfgDatasetsSD
 
   return (
     <div className="space-y-6">
@@ -96,11 +190,88 @@ const DocumentSearch: React.FC<Props> = ({ changeData, updateChangeData, onNext 
         </p>
       </div>
 
+      {/* QSR Determination Questions */}
+      <div className="lmnt-theme-surface-variant-bg p-6 rounded-lg">
+        <h3 className="font-bold lmnt-theme-on-surface mb-4">QSR Assessment Determination</h3>
+        <p className="text-sm lmnt-theme-on-surface-variant mb-4">
+          Answer the following questions to determine if a QSR assessment will be required later in the workflow.
+        </p>
+
+        <div className="space-y-3">
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={includesQSRDatasets}
+              onChange={(e) => handleQSRCheckbox('qsr', e.target.checked)}
+              className="mt-1 w-5 h-5 lmnt-theme-primary"
+            />
+            <div className="flex-1">
+              <span className="lmnt-theme-on-surface font-medium group-hover:lmnt-theme-primary">
+                Does the change include QSR Dataset document types?
+              </span>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={includesQualityDatasets}
+              onChange={(e) => handleQSRCheckbox('quality', e.target.checked)}
+              className="mt-1 w-5 h-5 lmnt-theme-primary"
+            />
+            <div className="flex-1">
+              <span className="lmnt-theme-on-surface font-medium group-hover:lmnt-theme-primary">
+                Does the change include Quality Dataset document types with subtype of 'Supplier Quality' and class of 'Supplier Quality Requirement' - Released State?
+              </span>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={includesTrainingDocs}
+              onChange={(e) => handleQSRCheckbox('training', e.target.checked)}
+              className="mt-1 w-5 h-5 lmnt-theme-primary"
+            />
+            <div className="flex-1">
+              <span className="lmnt-theme-on-surface font-medium group-hover:lmnt-theme-primary">
+                Does the change include a Training document?
+              </span>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={noneOfAboveQSR}
+              onChange={(e) => handleQSRCheckbox('none', e.target.checked)}
+              className="mt-1 w-5 h-5 lmnt-theme-primary"
+            />
+            <div className="flex-1">
+              <span className="lmnt-theme-on-surface font-medium group-hover:lmnt-theme-primary">
+                None of the above
+              </span>
+            </div>
+          </label>
+        </div>
+
+        {(includesQSRDatasets || includesQualityDatasets || includesTrainingDocs) && (
+          <div className="lmnt-theme-background-bg border-l-4 lmnt-theme-secondary-border p-4 mt-4">
+            <div className="flex items-start gap-2">
+              <AlertCircle size={20} className="lmnt-theme-secondary mt-0.5" />
+              <p className="text-sm lmnt-theme-on-surface">
+                <strong>QSR Assessment Required:</strong> Based on your selections, a QSR assessment page will be included in your workflow.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Change Type Selection */}
       <div className="lmnt-theme-surface-variant-bg p-6 rounded-lg">
         <h3 className="font-bold lmnt-theme-on-surface mb-4">Change Type *</h3>
         <p className="text-sm lmnt-theme-on-surface-variant mb-4">
-          Select either <strong>Product Change</strong> or <strong>Manufacturing/QSR Change</strong>. 
+          Select either <strong>Product Change</strong> or <strong>Manufacturing Change</strong>. 
           A change can only be one type or the other, not both.
         </p>
 
@@ -129,9 +300,9 @@ const DocumentSearch: React.FC<Props> = ({ changeData, updateChangeData, onNext 
             }`}
           >
             <Wrench size={40} className="lmnt-theme-secondary mx-auto mb-3" />
-            <h4 className="font-bold lmnt-theme-on-surface mb-2">Manufacturing/QSR Change</h4>
+            <h4 className="font-bold lmnt-theme-on-surface mb-2">Manufacturing Change</h4>
             <p className="lmnt-theme-on-surface text-sm">
-              Changes affecting manufacturing processes, QSR datasets, or training documents
+              Changes affecting manufacturing processes or datasets
             </p>
           </button>
         </div>
@@ -198,89 +369,122 @@ const DocumentSearch: React.FC<Props> = ({ changeData, updateChangeData, onNext 
             </div>
 
             {!isProductValid && changeType === 'product' && (
-              <div className="lmnt-theme-surface-variant-bg border-l-4 lmnt-theme-primary-border p-4 mt-4">
-                <p className="text-sm lmnt-theme-on-surface">
-                  ⚠️ Please select at least one product change criterion to continue
+              <div className="lmnt-theme-background-bg border-l-4 lmnt-theme-secondary-border p-4 mt-4">
+                <p className="text-sm lmnt-theme-on-surface font-medium">
+                  ℹ️ If none of these apply, please select <strong>Manufacturing Change</strong> instead.
                 </p>
               </div>
             )}
           </div>
         )}
 
-        {/* Manufacturing/QSR Change Information */}
+        {/* Manufacturing Change Sub-Questions */}
         {changeType === 'manufacturing' && (
           <div className="mt-6 p-4 lmnt-theme-background-bg rounded-lg border lmnt-theme-secondary-border">
-            <h4 className="font-bold lmnt-theme-on-surface mb-3">Manufacturing/QSR Change Includes</h4>
-            <ul className="space-y-2 text-sm lmnt-theme-on-surface list-disc list-inside">
-              <li>QSR Dataset document types</li>
-              <li>Quality Dataset documents (Supplier Quality Requirements - Released State)</li>
-              <li>Training documents</li>
-              <li>Product Design Datasets used in manufacturing</li>
-              <li>Manufacturing Dataset documents (O'Hara, Rydalmere, EMO, Heredia, Indianola, Saxonburg sites)</li>
-              <li>Service Datasets</li>
-            </ul>
+            <h4 className="font-bold lmnt-theme-on-surface mb-3">Manufacturing Change Determination</h4>
+            <p className="text-sm lmnt-theme-on-surface-variant mb-4">
+              Answer the following to determine which manufacturing assessment page(s) will be required. 
+              <strong className="lmnt-theme-primary"> Note: You can only select either EM or SD criteria, not both.</strong>
+            </p>
+
+            <div className="space-y-4">
+              <div className="border lmnt-theme-primary-border rounded-lg p-4">
+                <h5 className="font-medium lmnt-theme-on-surface mb-3">EM (Engineering Manufacturing) Assessment Criteria</h5>
+                <div className="space-y-3">
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={includesProductDesignInMfg}
+                      onChange={(e) => handleEMCheckbox('design', e.target.checked)}
+                      className="mt-1 w-5 h-5 lmnt-theme-primary"
+                    />
+                    <div className="flex-1">
+                      <span className="lmnt-theme-on-surface font-medium group-hover:lmnt-theme-primary">
+                        Does the change include Product Design Dataset document types used in manufacturing?
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={includesMfgDatasetsEM}
+                      onChange={(e) => handleEMCheckbox('mfg', e.target.checked)}
+                      className="mt-1 w-5 h-5 lmnt-theme-primary"
+                    />
+                    <div className="flex-1">
+                      <span className="lmnt-theme-on-surface font-medium group-hover:lmnt-theme-primary">
+                        Does the change include Manufacturing Dataset document types for impacted sites O'Hara, Rydalmere, or EMO?
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={includesServiceDatasets}
+                      onChange={(e) => handleEMCheckbox('service', e.target.checked)}
+                      className="mt-1 w-5 h-5 lmnt-theme-primary"
+                    />
+                    <div className="flex-1">
+                      <span className="lmnt-theme-on-surface font-medium group-hover:lmnt-theme-primary">
+                        Does the change include Service Datasets?
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="border lmnt-theme-secondary-border rounded-lg p-4">
+                <h5 className="font-medium lmnt-theme-on-surface mb-3">SD (Site-Specific) Assessment Criteria</h5>
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={includesMfgDatasetsSD}
+                    onChange={(e) => handleSDCheckbox(e.target.checked)}
+                    className="mt-1 w-5 h-5 lmnt-theme-primary"
+                  />
+                  <div className="flex-1">
+                    <span className="lmnt-theme-on-surface font-medium group-hover:lmnt-theme-primary">
+                      Does the change include Manufacturing Dataset document types for impacted sites exclusively at Heredia, Indianola and/or Saxonburg?
+                    </span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {needsEM && !needsSD && (
+              <div className="lmnt-theme-background-bg border-l-4 lmnt-theme-secondary-border p-4 mt-4">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={20} className="lmnt-theme-secondary mt-0.5" />
+                  <p className="text-sm lmnt-theme-on-surface">
+                    <strong>EM Assessment Required:</strong> Based on your selections, an EM (Engineering Manufacturing) assessment page will be included in your workflow.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {needsSD && !needsEM && (
+              <div className="lmnt-theme-background-bg border-l-4 lmnt-theme-secondary-border p-4 mt-4">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={20} className="lmnt-theme-secondary mt-0.5" />
+                  <p className="text-sm lmnt-theme-on-surface">
+                    <strong>SD Assessment Required:</strong> Based on your selections, an SD (Site-Specific) assessment page will be included in your workflow.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {!isManufacturingValid && changeType === 'manufacturing' && (
+              <div className="lmnt-theme-background-bg border-l-4 lmnt-theme-secondary-border p-4 mt-4">
+                <p className="text-sm lmnt-theme-on-surface font-medium">
+                  ℹ️ If none of these apply, please select <strong>Product Change</strong> instead.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
-
-      {/* Object Type */}
-      {changeType && (
-        <div className="lmnt-theme-surface-variant-bg p-6 rounded-lg">
-          <label className="block lmnt-theme-on-surface font-medium mb-2">
-            Object Type *
-          </label>
-          <select
-            value={objectType}
-            onChange={(e) => setObjectType(e.target.value)}
-            className="w-full px-4 py-3 border lmnt-theme-primary-border rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 lmnt-theme-primary"
-          >
-            <option value="">Select object type...</option>
-            {changeType === 'product' ? (
-              <>
-                <option value="Part">Part</option>
-                <option value="Assembly">Assembly</option>
-                <option value="Product Design Dataset">Product Design Dataset</option>
-                <option value="Drawing">Drawing</option>
-                <option value="Specification">Specification</option>
-                <option value="Protocol">Protocol</option>
-                <option value="Report">Report</option>
-              </>
-            ) : (
-              <>
-                <option value="QSR Dataset">QSR Dataset</option>
-                <option value="Quality Dataset">Quality Dataset</option>
-                <option value="Training Document">Training Document</option>
-                <option value="Manufacturing Dataset">Manufacturing Dataset</option>
-                <option value="Service Dataset">Service Dataset</option>
-                <option value="Work Instruction">Work Instruction</option>
-                <option value="SOP">SOP</option>
-              </>
-            )}
-          </select>
-          <p className="text-sm lmnt-theme-on-surface-variant mt-2">
-            Select the type of object being changed (reference D-0001048589)
-          </p>
-        </div>
-      )}
-
-      {/* Document Number */}
-      {changeType && objectType && (
-        <div className="lmnt-theme-surface-variant-bg p-6 rounded-lg">
-          <label className="block lmnt-theme-on-surface font-medium mb-2">
-            Document Number *
-          </label>
-          <input
-            type="text"
-            value={documentNumber}
-            onChange={(e) => setDocumentNumber(e.target.value)}
-            placeholder="Enter document number (e.g., D-000XXXXXXX or Part Number)"
-            className="w-full px-4 py-3 border lmnt-theme-primary-border rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 lmnt-theme-primary"
-          />
-          <p className="text-sm lmnt-theme-on-surface-variant mt-2">
-            Enter the document or part number from Windchill
-          </p>
-        </div>
-      )}
 
       <div className="flex justify-end pt-6 border-t lmnt-theme-divider-primary">
         <button
